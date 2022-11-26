@@ -1,86 +1,163 @@
-import type { NextPage } from 'next'
-import Head from 'next/head'
-import Image from 'next/image'
-
-const Home: NextPage = () => {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
-      <main className="flex w-full flex-1 flex-col items-center justify-center px-20 text-center">
-        <h1 className="text-6xl font-bold">
-          Welcome to{' '}
-          <a className="text-blue-600" href="https://nextjs.org">
-            Next.js!
-          </a>
-        </h1>
-
-        <p className="mt-3 text-2xl">
-          Get started by editing{' '}
-          <code className="rounded-md bg-gray-100 p-3 font-mono text-lg">
-            pages/index.tsx
-          </code>
-        </p>
-
-        <div className="mt-6 flex max-w-4xl flex-wrap items-center justify-around sm:w-full">
-          <a
-            href="https://nextjs.org/docs"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Documentation &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Find in-depth information about Next.js features and its API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Learn &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Learn about Next.js in an interactive course with quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Examples &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Discover and deploy boilerplate example Next.js projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Deploy &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
-
-      <footer className="flex h-24 w-full items-center justify-center border-t">
-        <a
-          className="flex items-center justify-center gap-2"
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-        </a>
-      </footer>
-    </div>
-  )
+import { nanoid } from 'nanoid';
+import type { NextPage } from 'next';
+import { SetStateAction, useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
+const socket = io('http://localhost:3000');
+interface Msg {
+  peo: 'you' | 'me';
+  msg: string;
+  id: string;
 }
+let messsage = new Map<string, Msg[]>();
+const Msgs = ({
+  msg,
+  talkTo,
+  setMessage,
+}: {
+  talkTo: string;
+  msg: Msg[];
+  setMessage: React.Dispatch<SetStateAction<Msg[]>>;
+}) => {
+  const sendMsg = (msg: string, id: string) => {
+    socket.emit('private message', id, msg);
+    if (messsage.has(id)) {
+      messsage.set(id, [
+        ...messsage.get(id)!.concat({ peo: 'me', msg, id: nanoid() }),
+      ]);
+    } else {
+      messsage.set(id, [{ peo: 'me', msg, id: nanoid() }]);
+    }
+    setMessage(messsage.get(id)!);
+  };
+  const [msgs, setMsgs] = useState<string>('');
+  return (
+    <div
+      className="relative flex  w-10/12 flex-col self-end"
+      style={{ height: '95vh' }}
+    >
+      <div className="inline-block h-screen overflow-auto">
+        {msg.map((m) => (
+          <MM key={m.id} peo={m.peo} id={m.id} msg={m.msg} />
+        ))}
+      </div>
+      <textarea
+        value={msgs}
+        onChange={(e) => setMsgs(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            sendMsg(msgs, talkTo);
+            setMsgs('');
+          }
+        }}
+        className="h-40 rounded-sm border-2 border-gray-300 focus:outline-none"
+      />
+      <button
+        className="absolute right-4 bottom-3 border border-sky-300 bg-sky-300 px-2"
+        onClick={() => {
+          sendMsg(msgs, talkTo);
+          setMsgs('');
+        }}
+      >
+        send
+      </button>
+    </div>
+  );
+};
+const MM = ({
+  id,
+  peo,
+  msg,
+}: {
+  id: string;
+  peo: 'you' | 'me';
+  msg: string;
+}) => {
+  return (
+    <div
+      className={`flex w-full ${
+        peo == 'you' ? 'flex-row' : 'flex-row-reverse'
+      }`}
+    >
+      <span
+        style={{ minWidth: '3rem' }}
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-green-300"
+      >
+        {id[0].toUpperCase()}
+      </span>
+      <span className="m-1 max-w-md rounded-md bg-gray-200 p-1">{msg}</span>
+    </div>
+  );
+};
+const Home: NextPage = () => {
+  const [msg, setMsg] = useState<Msg[]>([]);
+  const [talkTo, setTalkTo] = useState<string>('');
+  const [id, setId] = useState<string>('');
+  useEffect(() => {
+    socket.on('connect', () => {
+      console.log('connected', socket.id);
+      setId(socket.id);
+    });
+    socket.emit('get all');
+    socket.on('all', (users) => {
+      setUsers(users);
+    });
+    socket.on('private message', (id, msg) => {
+      console.log(id, msg);
+      if (messsage.has(id)) {
+        messsage.set(id, [
+          ...messsage.get(id)!.concat({ peo: 'you', msg, id: nanoid() }),
+        ]);
+      } else {
+        messsage.set(id, [{ peo: 'you', msg, id: nanoid() }]);
+      }
+      setMsg(messsage.get(id)!);
+      setTalkTo(id);
+      console.log(messsage);
+    });
+    socket.onAny((event, ...args) => {
+      console.log(`event: ${event} | arguments: ${args}`);
+    });
+    return () => {
+      socket.off('all');
+      socket.offAny();
+      socket.off('private message');
+      socket.off('connect');
+    };
+  }, []);
+  const [users, setUsers] = useState<string[]>([]);
 
-export default Home
+  return (
+    <>
+      <header className="text-center">
+        {talkTo == ''
+          ? `选择好友开始聊天吧` + `\n你的id是${id}`
+          : talkTo + `\n你的id是${id}`}
+      </header>
+      <div
+        className="flex  flex-row justify-center overflow-auto"
+        style={{ maxHeight: '95vh' }}
+      >
+        <div className="m-0 w-24 overflow-y-auto" style={{ minHeight: '95vh' }}>
+          {users.map((item) => (
+            <div
+              onClick={() => {
+                setMsg(messsage.get(item) || []);
+                setTalkTo(item);
+                console.log(item);
+              }}
+              key={item}
+              className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-pink-300"
+            >
+              {item[0].toUpperCase()}
+            </div>
+          ))}{' '}
+          <div></div>
+        </div>
+        <Msgs setMessage={setMsg} talkTo={talkTo} msg={msg} />
+      </div>
+    </>
+  );
+};
+
+export default Home;
